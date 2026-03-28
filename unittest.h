@@ -49,17 +49,28 @@ extern int unittest_passed_tests;
     } \
     void unittest_test_func_##name(void)
 
+#define _UT_SAFE_DBL(x) __builtin_choose_expr( \
+    __builtin_types_compatible_p(__typeof__(x), char*) || \
+    __builtin_types_compatible_p(__typeof__(x), const char*), \
+    0.0, x)
+
 #define EXPECT_EQ(expected, actual) do  { \
-    __typeof__(expected) _ut_exp = (expected); \
-    __typeof__(actual) _ut_act = (actual); \
+    __typeof__((expected) + 0) _ut_exp = (expected) + 0; \
+    __typeof__((actual) + 0) _ut_act = (actual) + 0; \
     int _ut_pass = 0; \
-    if(__builtin_types_compatible_p(__typeof__(_ut_exp), float) || __builtin_types_compatible_p(__typeof__(_ut_exp), double)) { \
-        _ut_pass = (fabs((double)_ut_exp - (double)_ut_act) < UT_EPSILON); \
-    } else if(__builtin_types_compatible_p(__typeof__(_ut_exp), char*) || __builtin_types_compatible_p(__typeof__(_ut_exp), const char*)) {\
-        _ut_pass = (strcmp((const char*)(uintptr_t)_ut_exp, (const char*)(uintptr_t)_ut_act) == 0); \
-    } else { \
-        _ut_pass = (_ut_exp == _ut_act); \
-    }\
+    \
+    _ut_pass = __builtin_choose_expr( \
+        __builtin_types_compatible_p(__typeof__(_ut_exp), float) || \
+        __builtin_types_compatible_p(__typeof__(_ut_exp), double), \
+        fabs((double)_UT_SAFE_DBL(_ut_exp) - (double)_UT_SAFE_DBL(_ut_act)) < UT_EPSILON, \
+        __builtin_choose_expr( \
+            __builtin_types_compatible_p(__typeof__(_ut_exp), char*) || \
+            __builtin_types_compatible_p(__typeof__(_ut_exp), const char*), \
+            strcmp((const char*)(uintptr_t)_ut_exp, (const char*)(uintptr_t)_ut_act) == 0, \
+            _ut_exp == _ut_act \
+        ) \
+    ); \
+    \
     if(_ut_pass == 1) { \
         if (!UT_ONLY_SHOW_FAILED) { \
             printf("\t\x1b[32m[PASS]\x1b[0m %s : %d\n", __FILE__, __LINE__); \
