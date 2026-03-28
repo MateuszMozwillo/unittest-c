@@ -78,7 +78,7 @@ extern int unittest_passed_tests;
         unittest_passed_tests++; \
     } else { \
         printf("\t\x1b[31m[FAIL]\x1b[0m %s : %d\n", __FILE__, __LINE__); \
-        printf("\t\texpected: "); \
+        printf("\t       expected: "); \
         printf(UT_FORMAT(_ut_exp), _ut_exp); \
         printf(" got "); \
         printf(UT_FORMAT(_ut_act), _ut_act); \
