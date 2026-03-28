@@ -5,15 +5,19 @@
 #define UT_MAX_TEST_COUNT 1000
 #endif
 
-#ifndef REAL_NUMER_EQUAL_MARGIN
-#define REAL_NUMER_EQUAL_MARGIN 0.00001
+#ifndef UT_EPSILON
+#define UT_EPSILON 0.00001
 #endif
 
 #ifndef UT_ONLY_SHOW_FAILED
 #define UT_ONLY_SHOW_FAILED 0
 #endif
 
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
+#include <math.h>
+#include <stdint.h>
 
 typedef void (*test_func_t)(void);
 
@@ -23,9 +27,22 @@ extern int unittest_test_count;
 extern int unittest_failed_tests;
 extern int unittest_passed_tests;
 
+#define UT_FORMAT(val) _Generic((val), \
+    int: "%d", \
+    long: "%ld", \
+    float: "%.6f", \
+    double: "%.6f", \
+    char*: "\"%s\"", \
+    const char*: "\"%s\"", \
+    default: "%p")
+
 #define TEST(name) \
     void unittest_test_func_##name(void); \
     __attribute__((constructor)) void unittest_register_test_##name(void) { \
+    if (unittest_test_count >= UT_MAX_TEST_COUNT) { \
+        fprintf(stderr, "\x1b[31m[FATAL]\x1b[0m Maximum test count (%d) exceeded!\n", UT_MAX_TEST_COUNT); \
+        exit(1); \
+    } \
     unittest_test_registry[unittest_test_count] = unittest_test_func_##name; \
     unittest_test_names[unittest_test_count] = #name; \
     unittest_test_count++; \
@@ -35,14 +52,26 @@ extern int unittest_passed_tests;
 #define EXPECT_EQ(expected, actual) do  { \
     __typeof__(expected) _ut_exp = (expected); \
     __typeof__(actual) _ut_act = (actual); \
-    if(_ut_exp == _ut_act) { \
+    int _ut_pass = 0; \
+    if(__builtin_types_compatible_p(__typeof__(_ut_exp), float) || __builtin_types_compatible_p(__typeof__(_ut_exp), double)) { \
+        _ut_pass = (fabs((double)_ut_exp - (double)_ut_act) < UT_EPSILON); \
+    } else if(__builtin_types_compatible_p(__typeof__(_ut_exp), char*) || __builtin_types_compatible_p(__typeof__(_ut_exp), const char*)) {\
+        _ut_pass = (strcmp((const char*)(uintptr_t)_ut_exp, (const char*)(uintptr_t)_ut_act) == 0); \
+    } else { \
+        _ut_pass = (_ut_exp == _ut_act); \
+    }\
+    if(_ut_pass == 1) { \
         if (!UT_ONLY_SHOW_FAILED) { \
             printf("\t\x1b[32m[PASS]\x1b[0m %s : %d\n", __FILE__, __LINE__); \
         } \
         unittest_passed_tests++; \
     } else { \
         printf("\t\x1b[31m[FAIL]\x1b[0m %s : %d\n", __FILE__, __LINE__); \
-        printf("\t\texpected: %d got %d\n", _ut_exp, _ut_act); \
+        printf("\t\texpected: "); \
+        printf(UT_FORMAT(_ut_exp), _ut_exp); \
+        printf(" got "); \
+        printf(UT_FORMAT(_ut_act), _ut_act); \
+        printf("\n"); \
         unittest_failed_tests++; \
     } \
 } while(0)
